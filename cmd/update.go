@@ -35,6 +35,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			loadConfig()
 			url := viper.GetString(hostsUrl)
 			if !strings.EqualFold("", url) {
 				if download {
@@ -53,7 +54,7 @@ func init() {
 }
 
 func tmpPath() string {
-	return filepath.Join(filepath.Dir(configPath()), hostsTmp)
+	return filepath.Join(filepath.Dir(file), hostsTmp)
 }
 
 func downloadTmp(url, fileName string) {
@@ -123,10 +124,16 @@ func writeHosts() {
 		if strings.EqualFold(line, startTag) || strings.EqualFold(line, endTag) {
 			continue
 		}
-		bw.WriteString(line)
+		if _, err = bw.WriteString(line); err != nil {
+			log.Fatalln(err)
+		}
 	}
 	for _, footer := range footers {
-		bw.WriteString(footer)
+		if _, err = bw.WriteString(footer); err != nil {
+			log.Fatalln(err)
+		}
 	}
-	bw.Flush()
+	if err = bw.Flush(); err != nil {
+		log.Fatalln(err)
+	}
 }

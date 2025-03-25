@@ -16,7 +16,7 @@ const (
 	hostsPath = "hosts_path"
 )
 
-var url, path string
+var file, url, path string
 
 // configCmd represents the config command
 var configCmd = &cobra.Command{

@@ -4,18 +4,15 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var (
-	conf    string
 	rootCmd = &cobra.Command{
 		Use:   "hosts-vindicator",
 		Short: "A brief description of your application",
@@ -25,17 +22,12 @@ examples and usage of using your application. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-		// Uncomment the following line if your bare application
-		// has an action associated with it:
-		// Run: func(cmd *cobra.Command, args []string) { },
 	}
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	log.Println("execute: " + conf)
-	createConfigDir()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -43,36 +35,39 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&conf, "conf", "", "")
+	rootCmd.PersistentFlags().StringVarP(&file, "file", "f", defaultPath(), "")
 }
 
-func createConfigDir() {
-	configDir := filepath.Dir(configPath())
-	if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+func configDir() {
+	if err := os.MkdirAll(filepath.Dir(file), os.ModePerm); err != nil {
 		if !os.IsExist(err) {
 			log.Fatalln(err)
 		}
 	}
 }
 
-func configPath() string {
-	if !strings.EqualFold(conf, "") {
-		return conf
+func defaultPath() string {
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(homeDir, ".config", execName(), "hv.yaml")
 	}
-	var homeDir string
-	var err error
-	if homeDir, err = os.UserHomeDir(); err != nil {
-		homeDir = "."
+	return ""
+}
+
+func execName() string {
+	if execPath, err := os.Executable(); err == nil {
+		return filepath.Base(execPath)
 	}
-	configPath := filepath.Join(homeDir, ".config", "hosts-vindicator", "hv.yaml")
-	return configPath
+	return "hosts-vindicator"
 }
 
 func initConfig() {
-	log.Println(configPath())
-	viper.SetConfigName(filepath.Base(configPath()))
-	viper.SetConfigFile(configPath())
+	configDir()
+	viper.SetConfigName(filepath.Base(file))
+	viper.SetConfigFile(file)
 	viper.SetConfigType("yaml")
+}
+
+func loadConfig() {
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalln(err)
 	}
