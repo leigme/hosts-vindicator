@@ -4,6 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bufio"
 	"io"
 	"log"
 	"net/http"
@@ -15,35 +16,47 @@ import (
 	"github.com/spf13/viper"
 )
 
-const hostsTmp = "hosts.tmp"
+const (
+	hostsTmp = "hosts.tmp"
+	startTag = "# GitHub IP hosts Start"
+	endTag   = "# GitHub IP hosts End"
+)
 
-// updateCmd represents the update command
-var updateCmd = &cobra.Command{
-	Use:   "update",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
+var (
+	download         bool
+	headers, footers []string
+	updateCmd        = &cobra.Command{
+		Use:   "update",
+		Short: "A brief description of your command",
+		Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		url := viper.GetString(hostsUrl)
-		log.Println(url)
-		if !strings.EqualFold("", url) {
-			downloadTmp(url, filepath.Join(filepath.Dir(configPath()), hostsTmp))
-		}
-	},
-}
+		Run: func(cmd *cobra.Command, args []string) {
+			url := viper.GetString(hostsUrl)
+			if !strings.EqualFold("", url) {
+				if download {
+					downloadTmp(url, tmpPath())
+				}
+				readHosts()
+				writeHosts()
+			}
+		},
+	}
+)
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
+	updateCmd.Flags().BoolVarP(&download, "download", "d", true, "")
+}
+
+func tmpPath() string {
+	return filepath.Join(filepath.Dir(configPath()), hostsTmp)
 }
 
 func downloadTmp(url, fileName string) {
-	// https://github.com/ittuann/GitHub-IP-hosts/blob/main/hosts
-	log.Println(url)
-	log.Println(fileName)
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatalln(err)
@@ -60,4 +73,60 @@ func downloadTmp(url, fileName string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func readHosts() {
+	oldHosts, err := os.Open(viper.GetString(hostsPath))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer oldHosts.Close()
+	scanner := bufio.NewScanner(oldHosts)
+	skip := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.EqualFold(line, startTag) {
+			skip = true
+			continue
+		}
+		if !skip {
+			headers = append(headers, line)
+		}
+		if strings.EqualFold(line, endTag) {
+			skip = false
+			continue
+		}
+		if !skip {
+			footers = append(footers, line)
+		}
+	}
+}
+
+func writeHosts() {
+	newHosts, err := os.Open(viper.GetString(hostsPath))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer newHosts.Close()
+	bw := bufio.NewWriter(newHosts)
+	for _, header := range headers {
+		bw.WriteString(header)
+	}
+	tmp, err := os.Open(tmpPath())
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer tmp.Close()
+	br := bufio.NewScanner(tmp)
+	for br.Scan() {
+		line := br.Text()
+		if strings.EqualFold(line, startTag) || strings.EqualFold(line, endTag) {
+			continue
+		}
+		bw.WriteString(line)
+	}
+	for _, footer := range footers {
+		bw.WriteString(footer)
+	}
+	bw.Flush()
 }

@@ -11,9 +11,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-const hostsUrl = "hosts_url"
+const (
+	hostsUrl  = "hosts_url"
+	hostsPath = "hosts_path"
+)
 
-var url string
+var url, path string
 
 // configCmd represents the config command
 var configCmd = &cobra.Command{
@@ -35,10 +38,12 @@ to quickly create a Cobra application.`,
 			url = strings.Replace(url, "https://github.com", "https://raw.githubusercontent.com", 1)
 		}
 		viper.Set(hostsUrl, url)
+		viper.Set(hostsPath, path)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(configCmd)
-	configCmd.Flags().StringVar(&url, "url", "https://raw.githubusercontent.com/ittuann/GitHub-IP-hosts/refs/heads/main/hosts", "")
+	configCmd.Flags().StringVarP(&url, "url", "u", "https://raw.githubusercontent.com/ittuann/GitHub-IP-hosts/refs/heads/main/hosts", "")
+	configCmd.Flags().StringVarP(&path, "path", "p", "/etc/hosts", "")
 }
