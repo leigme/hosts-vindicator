@@ -30,13 +30,7 @@ to quickly create a Cobra application.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	defer func() {
-		if err := viper.WriteConfig(); err != nil {
-			log.Println(err)
-		}
-	}()
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
@@ -69,4 +63,7 @@ func initConfig() {
 	viper.SetConfigName(filepath.Base(configPath()))
 	viper.SetConfigFile(configPath())
 	viper.SetConfigType("yaml")
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatalln(err)
+	}
 }

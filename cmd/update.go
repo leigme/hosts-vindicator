@@ -28,7 +28,9 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if url := viper.GetString(hostsUrl); !strings.EqualFold("", url) {
+		url := viper.GetString(hostsUrl)
+		log.Println(url)
+		if !strings.EqualFold("", url) {
 			downloadTmp(url, filepath.Join(filepath.Dir(configPath()), hostsTmp))
 		}
 	},
@@ -40,6 +42,8 @@ func init() {
 
 func downloadTmp(url, fileName string) {
 	// https://github.com/ittuann/GitHub-IP-hosts/blob/main/hosts
+	log.Println(url)
+	log.Println(fileName)
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatalln(err)
