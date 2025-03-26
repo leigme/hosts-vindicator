@@ -98,21 +98,22 @@ func readHosts() {
 		return
 	}
 	scanner := bufio.NewScanner(hosts)
-	s := false
+	ignore := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.Contains(line, startTag) {
-			s = true
+			ignore = true
 			continue
 		}
-		if !s {
+		if !ignore {
 			headers = append(headers, line)
+			continue
 		}
 		if strings.Contains(line, endTag) {
-			s = false
+			ignore = false
 			continue
 		}
-		if !s {
+		if !ignore {
 			footers = append(footers, line)
 		}
 	}
