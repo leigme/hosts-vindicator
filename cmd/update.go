@@ -120,7 +120,7 @@ func readHosts() {
 }
 
 func writeHosts() {
-	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_RDWR|os.O_TRUNC|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		log.Fatalln(err)
 	}
