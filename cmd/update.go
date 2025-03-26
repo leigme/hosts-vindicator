@@ -23,7 +23,8 @@ const (
 )
 
 var (
-	download         bool
+	skip             bool
+	replace          bool
 	headers, footers []string
 	updateCmd        = &cobra.Command{
 		Use:   "update",
@@ -38,10 +39,12 @@ to quickly create a Cobra application.`,
 			loadConfig()
 			url := viper.GetString(hostsUrl)
 			if !strings.EqualFold("", url) {
-				if download {
+				if !skip {
 					downloadTmp(url, tmpPath())
 				}
-				readHosts()
+				if !replace {
+					readHosts()
+				}
 				writeHosts()
 			}
 		},
@@ -50,7 +53,8 @@ to quickly create a Cobra application.`,
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
-	updateCmd.Flags().BoolVarP(&download, "download", "d", true, "")
+	updateCmd.Flags().BoolVarP(&skip, "skip", "s", false, "")
+	updateCmd.Flags().BoolVarP(&replace, "replace", "r", false, "")
 }
 
 func tmpPath() string {
@@ -77,41 +81,55 @@ func downloadTmp(url, fileName string) {
 }
 
 func readHosts() {
-	oldHosts, err := os.Open(viper.GetString(hostsPath))
+	hp := viper.GetString(hostsPath)
+	hosts, err := os.Open(hp)
+	defer hosts.Close()
 	if err != nil {
-		log.Fatalln(err)
+		if !os.IsNotExist(err) {
+			log.Fatalln(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(hp), os.ModePerm); err != nil {
+			log.Fatalln(err)
+		} else {
+			if hosts, err = os.Create(viper.GetString(hostsPath)); err != nil {
+				log.Fatalln(err)
+			}
+		}
+		return
 	}
-	defer oldHosts.Close()
-	scanner := bufio.NewScanner(oldHosts)
-	skip := false
+	scanner := bufio.NewScanner(hosts)
+	s := false
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.EqualFold(line, startTag) {
-			skip = true
+		if strings.Contains(line, startTag) {
+			s = true
 			continue
 		}
-		if !skip {
+		if !s {
 			headers = append(headers, line)
 		}
-		if strings.EqualFold(line, endTag) {
-			skip = false
+		if strings.Contains(line, endTag) {
+			s = false
 			continue
 		}
-		if !skip {
+		if !s {
 			footers = append(footers, line)
 		}
 	}
 }
 
 func writeHosts() {
-	newHosts, err := os.Open(viper.GetString(hostsPath))
+	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer newHosts.Close()
-	bw := bufio.NewWriter(newHosts)
+	defer hosts.Close()
+	bw := bufio.NewWriter(hosts)
+	if len(headers) == 0 {
+		headers = append(headers, startTag)
+	}
 	for _, header := range headers {
-		bw.WriteString(header)
+		bw.WriteString(header + "\n")
 	}
 	tmp, err := os.Open(tmpPath())
 	if err != nil {
@@ -124,12 +142,15 @@ func writeHosts() {
 		if strings.EqualFold(line, startTag) || strings.EqualFold(line, endTag) {
 			continue
 		}
-		if _, err = bw.WriteString(line); err != nil {
+		if _, err = bw.WriteString(line + "\n"); err != nil {
 			log.Fatalln(err)
 		}
 	}
+	if len(footers) == 0 {
+		footers = append(footers, endTag)
+	}
 	for _, footer := range footers {
-		if _, err = bw.WriteString(footer); err != nil {
+		if _, err = bw.WriteString(footer + "\n"); err != nil {
 			log.Fatalln(err)
 		}
 	}

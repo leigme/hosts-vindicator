@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"log"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,9 +33,6 @@ to quickly create a Cobra application.`,
 				log.Fatalln(err)
 			}
 		}()
-		if strings.HasPrefix(url, "https://github.com") {
-			url = strings.Replace(url, "https://github.com", "https://raw.githubusercontent.com", 1)
-		}
 		viper.Set(hostsUrl, url)
 		viper.Set(hostsPath, path)
 	},
