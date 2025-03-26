@@ -88,7 +88,7 @@ func readHosts() {
 		if !os.IsNotExist(err) {
 			log.Fatalln(err)
 		}
-		if err := os.MkdirAll(filepath.Dir(hp), os.ModePerm); err != nil {
+		if err := os.MkdirAll(filepath.Dir(hp), 0666); err != nil {
 			log.Fatalln(err)
 		} else {
 			if hosts, err = os.Create(viper.GetString(hostsPath)); err != nil {
@@ -120,7 +120,7 @@ func readHosts() {
 }
 
 func writeHosts() {
-	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_RDWR|os.O_TRUNC|os.O_CREATE, os.ModePerm)
+	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatalln(err)
 	}
