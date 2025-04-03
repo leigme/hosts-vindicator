@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"bufio"
+	"github.com/schollz/progressbar/v3"
 	"io"
 	"log"
 	"net/http"
@@ -75,14 +76,15 @@ func downloadTmp(url, fileName string) {
 		log.Fatalln(err)
 	}
 	defer resp.Body.Close()
-
+	bar := progressbar.DefaultBytes(
+		resp.ContentLength, "downloading: ")
 	out, err := os.Create(fileName)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -128,22 +130,32 @@ func readHosts() {
 }
 
 func writeHosts() {
+	tmpStat, err := os.Stat(tmpPath())
+	if err != nil {
+		log.Fatalln(err)
+	}
 	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer hosts.Close()
 
-	bw := bufio.NewWriter(hosts)
+	bar := progressbar.DefaultBytes(tmpStat.Size(), "writing: ")
+	hb := io.MultiWriter(hosts, bar)
+
+	bw := bufio.NewWriter(hb)
+	io.MultiWriter(bw, bar)
 	for _, header := range headers {
 		bw.WriteString(header + "\n")
 	}
 	bw.WriteString(stc + "\n")
+
 	tmp, err := os.Open(tmpPath())
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer tmp.Close()
+
 	br := bufio.NewScanner(tmp)
 	for br.Scan() {
 		line := br.Text()
