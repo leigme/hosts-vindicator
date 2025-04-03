@@ -13,6 +13,8 @@ import (
 const (
 	hostsUrl  = "hosts_url"
 	hostsPath = "hosts_path"
+	startTag  = "start_tag"
+	endTag    = "end_tag"
 )
 
 var file, url, path string

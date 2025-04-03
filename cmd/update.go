@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	hostsTmp = "hosts.tmp"
-	startTag = "# GitHub IP hosts Start"
-	endTag   = "# GitHub IP hosts End"
+	hostsTmp        = "hosts.tmp"
+	defaultStartTag = "# GitHub IP hosts Start"
+	defaultEndTag   = "# GitHub IP hosts End"
 )
 
 var (
-	skip             bool
-	replace          bool
+	stc, etc         string
+	skip, replace    bool
 	headers, footers []string
 	updateCmd        = &cobra.Command{
 		Use:   "update",
@@ -38,6 +38,14 @@ to quickly create a Cobra application.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			loadConfig()
 			url := viper.GetString(hostsUrl)
+			stc = viper.GetString(startTag)
+			if strings.EqualFold("", stc) {
+				stc = defaultStartTag
+			}
+			etc = viper.GetString(endTag)
+			if strings.EqualFold("", etc) {
+				etc = defaultEndTag
+			}
 			if !strings.EqualFold("", url) {
 				if !skip {
 					downloadTmp(url, tmpPath())
@@ -98,23 +106,23 @@ func readHosts() {
 		return
 	}
 	scanner := bufio.NewScanner(hosts)
-	ignore := false
+	before := true
+	after := false
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.Contains(line, startTag) {
-			ignore = true
+		if !strings.Contains(line, startTag) {
+			before = false
 			continue
 		}
-		if !ignore {
+		if before && !after {
 			headers = append(headers, line)
-			continue
+		}
+		if !before && after {
+			footers = append(footers, line)
 		}
 		if strings.Contains(line, endTag) {
-			ignore = false
+			after = true
 			continue
-		}
-		if !ignore {
-			footers = append(footers, line)
 		}
 	}
 }
@@ -125,13 +133,12 @@ func writeHosts() {
 		log.Fatalln(err)
 	}
 	defer hosts.Close()
+
 	bw := bufio.NewWriter(hosts)
-	if len(headers) == 0 {
-		headers = append(headers, startTag)
-	}
 	for _, header := range headers {
 		bw.WriteString(header + "\n")
 	}
+	bw.WriteString(stc + "\n")
 	tmp, err := os.Open(tmpPath())
 	if err != nil {
 		log.Fatalln(err)
@@ -147,9 +154,7 @@ func writeHosts() {
 			log.Fatalln(err)
 		}
 	}
-	if len(footers) == 0 {
-		footers = append(footers, endTag)
-	}
+	bw.WriteString(etc + "\n")
 	for _, footer := range footers {
 		if _, err = bw.WriteString(footer + "\n"); err != nil {
 			log.Fatalln(err)
