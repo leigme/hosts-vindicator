@@ -1,10 +1,11 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
+/*
+//Copyright © 2025 leig HERE <leigme@gmail.com>
+*/
 import (
 	"bufio"
+	_ "embed"
 	"github.com/schollz/progressbar/v3"
 	"io"
 	"log"
@@ -12,22 +13,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-const (
-	hostsTmp        = "hosts.tmp"
-	defaultStartTag = "# GitHub IP hosts Start"
-	defaultEndTag   = "# GitHub IP hosts End"
-)
-
 var (
-	stc, etc         string
-	skip, replace    bool
-	headers, footers []string
-	updateCmd        = &cobra.Command{
+	//go:embed template/hosts.tpl
+	hostsTpl  string
+	stc, etc  string
+	updateCmd = &cobra.Command{
 		Use:   "update",
 		Short: "A brief description of your command",
 		Long: `A longer description that spans multiple lines and likely contains examples
@@ -37,37 +33,37 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			data := make(map[string]any)
 			loadConfig()
 			url := viper.GetString(hostsUrl)
 			stc = viper.GetString(startTag)
 			if strings.EqualFold("", stc) {
 				stc = defaultStartTag
 			}
+			data["StartTag"] = stc
 			etc = viper.GetString(endTag)
 			if strings.EqualFold("", etc) {
 				etc = defaultEndTag
 			}
-			if !strings.EqualFold("", url) {
-				if !skip {
-					downloadTmp(url, tmpPath())
-				}
-				if !replace {
-					readHosts()
-				}
-				writeHosts()
+			data["EndTag"] = etc
+			if !strings.EqualFold("", url) && !conf.skip {
+				downloadTmp(url, tmpPath())
 			}
+			readTmp(data)
+			if !conf.replace {
+				readHosts(data)
+			}
+			writeHosts(data)
 		},
 	}
 )
 
 func init() {
 	rootCmd.AddCommand(updateCmd)
-	updateCmd.Flags().BoolVarP(&skip, "skip", "s", false, "")
-	updateCmd.Flags().BoolVarP(&replace, "replace", "r", false, "")
 }
 
 func tmpPath() string {
-	return filepath.Join(filepath.Dir(file), hostsTmp)
+	return filepath.Join(filepath.Dir(conf.file), hostsTmp)
 }
 
 func downloadTmp(url, fileName string) {
@@ -75,30 +71,63 @@ func downloadTmp(url, fileName string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err = resp.Body.Close(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
 	bar := progressbar.DefaultBytes(
-		resp.ContentLength, "downloading: ")
+		-1, "downloading: ")
 	out, err := os.Create(fileName)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer out.Close()
-
+	defer func() {
+		if err = out.Close(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
 	_, err = io.Copy(io.MultiWriter(out, bar), resp.Body)
 	if err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func readHosts() {
+func readTmp(data map[string]any) {
+	contents := make([]string, 0)
+	tmp, err := os.Open(tmpPath())
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer func() {
+		if err = tmp.Close(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
+	br := bufio.NewScanner(tmp)
+	for br.Scan() {
+		line := br.Text()
+		if strings.EqualFold(line, stc) || strings.EqualFold(line, etc) {
+			continue
+		}
+		contents = append(contents, line)
+	}
+	data["Contents"] = contents
+}
+
+func readHosts(data map[string]any) {
 	hp := viper.GetString(hostsPath)
 	hosts, err := os.Open(hp)
-	defer hosts.Close()
+	defer func() {
+		if err = hosts.Close(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatalln(err)
 		}
-		if err := os.MkdirAll(filepath.Dir(hp), 0666); err != nil {
+		if err = os.MkdirAll(filepath.Dir(hp), 0666); err != nil {
 			log.Fatalln(err)
 		} else {
 			if hosts, err = os.Create(viper.GetString(hostsPath)); err != nil {
@@ -107,70 +136,61 @@ func readHosts() {
 		}
 		return
 	}
+	headers := make([]string, 0)
+	footers := make([]string, 0)
 	scanner := bufio.NewScanner(hosts)
 	before := true
 	after := false
 	for scanner.Scan() {
 		line := scanner.Text()
-		if !strings.Contains(line, startTag) {
+		if strings.EqualFold("", line) {
+			continue
+		}
+		if strings.Contains(line, stc) {
 			before = false
 			continue
 		}
 		if before && !after {
 			headers = append(headers, line)
+			continue
 		}
-		if !before && after {
-			footers = append(footers, line)
-		}
-		if strings.Contains(line, endTag) {
+		if strings.Contains(line, etc) {
 			after = true
 			continue
 		}
-	}
-}
-
-func writeHosts() {
-	tmpStat, err := os.Stat(tmpPath())
-	if err != nil {
-		log.Fatalln(err)
-	}
-	hosts, err := os.OpenFile(viper.GetString(hostsPath), os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer hosts.Close()
-
-	bar := progressbar.DefaultBytes(tmpStat.Size(), "writing: ")
-	hb := io.MultiWriter(hosts, bar)
-
-	bw := bufio.NewWriter(hb)
-	io.MultiWriter(bw, bar)
-	for _, header := range headers {
-		bw.WriteString(header + "\n")
-	}
-	bw.WriteString(stc + "\n")
-
-	tmp, err := os.Open(tmpPath())
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer tmp.Close()
-
-	br := bufio.NewScanner(tmp)
-	for br.Scan() {
-		line := br.Text()
-		if strings.EqualFold(line, startTag) || strings.EqualFold(line, endTag) {
+		if !before && after {
+			footers = append(footers, line)
 			continue
 		}
-		if _, err = bw.WriteString(line + "\n"); err != nil {
-			log.Fatalln(err)
-		}
 	}
-	bw.WriteString(etc + "\n")
-	for _, footer := range footers {
-		if _, err = bw.WriteString(footer + "\n"); err != nil {
+	data["Headers"] = headers
+	data["Footers"] = footers
+}
+
+func writeHosts(data map[string]any) {
+	writeFileByTemplate(viper.GetString(hostsPath), hostsTpl, data)
+}
+
+func writeFileByTemplate(filePath string, tpl string, data map[string]any) {
+	t, err := template.New("").Parse(tpl)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer func() {
+		if err = f.Close(); err != nil {
 			log.Fatalln(err)
 		}
+	}()
+	bw := bufio.NewWriter(f)
+	if err = t.Execute(bw, data); err != nil {
+		log.Fatalln(err)
+	}
+	if _, err = bw.WriteString("\n"); err != nil {
+		log.Fatalln(err)
 	}
 	if err = bw.Flush(); err != nil {
 		log.Fatalln(err)

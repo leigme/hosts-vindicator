@@ -1,9 +1,8 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
+/*
+//Copyright © 2025 leig HERE <leigme@gmail.com>
+*/
 import (
 	"fmt"
 

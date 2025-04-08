@@ -1,8 +1,8 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
+/*
+//Copyright © 2025 leig HERE <leigme@gmail.com>
+*/
 import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -13,6 +13,7 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var (
+	conf    = config{}
 	rootCmd = &cobra.Command{
 		Use:   "hosts-vindicator",
 		Short: "A brief description of your application",
@@ -35,11 +36,13 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVarP(&file, "file", "f", defaultPath(), "")
+	rootCmd.PersistentFlags().StringVarP(&conf.file, "file", "f", defaultPath(), "")
+	rootCmd.PersistentFlags().BoolVarP(&conf.skip, "skip", "s", false, "")
+	rootCmd.PersistentFlags().BoolVarP(&conf.replace, "replace", "r", false, "")
 }
 
 func configDir() {
-	if err := os.MkdirAll(filepath.Dir(file), os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(conf.file), os.ModePerm); err != nil {
 		if !os.IsExist(err) {
 			log.Fatalln(err)
 		}
@@ -62,13 +65,16 @@ func execName() string {
 
 func initConfig() {
 	configDir()
-	viper.SetConfigName(filepath.Base(file))
-	viper.SetConfigFile(file)
+	viper.SetConfigName(filepath.Base(conf.file))
+	viper.SetConfigFile(conf.file)
 	viper.SetConfigType("yaml")
 }
 
 func loadConfig() {
 	if err := viper.ReadInConfig(); err != nil {
+		log.Fatalln(err)
+	}
+	if err := viper.Unmarshal(&conf); err != nil {
 		log.Fatalln(err)
 	}
 }
